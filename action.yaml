@@ -1,0 +1,65 @@
+name: Get ProjectV2 Field ID
+description: Returns ProjectV2 Field ID from field name if exists
+
+inputs:
+  pat_token:
+    description: GitHub PAT token
+    required: true
+  organization:
+    description: Organization login name
+    required: true
+  project_number:
+    description: ProjectV2 Number
+    required: true
+  field_name:
+    description: ProjectV2 Field name
+    required: true
+
+outputs:
+  field_id:
+    description: "The Field ID in the Project if exists"
+    value: "${{ steps.execution.outputs.field_id }}"
+
+runs:
+  using: "composite"
+  steps:
+    - id: execution
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ inputs.pat_token }}
+        script: |
+          const org = "${{ inputs.organization }}";
+          const p_number = ${{ inputs.project_number }};
+          const f_name = "${{ inputs.field_name }}";
+
+          const query = `
+            query {
+              organization(login: "${org}") {
+                projectV2(number: ${p_number}) {
+                  id
+                  fields(first: 20) {
+                    nodes {
+                      ... on ProjectV2SingleSelectField {
+                        id
+                        name
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          `;
+
+          const result = await github.graphql(query);
+          const project = result.organization.projectV2;
+          const field = project.fields.nodes.find(
+            (f) => f.name === f_name
+          );
+
+          if (!field) {
+            core.setFailed(`Field name ${f_name} not found in the given project`);
+          }
+
+          const field_id = field.id;
+          console.log("Field ID Found:", field_id);
+          core.setOutput("field_id", field_id);
